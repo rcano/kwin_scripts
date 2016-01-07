@@ -52,18 +52,29 @@ object Main extends JSApp {
   def clientFullDescr(c: Client) = s"  ${c.resourceClass} » ${c.resourceName} » ${c.caption} » ${windowTypeName(c.windowType)}"
   def geomToString(g: Kwin.QRect) = s"[x=${g.x}, y=${g.y}, w=${g.width}, h=${g.height}]"
 
+  type ClientClass = (String, String)
+  def clientClass(c: Client): ClientClass = (c.resourceClass.toString, c.resourceName.toString)
+
+  /**
+   * Calculates a position in the targetScreen based on relative position with fromScreen
+   */
+  def calculateScreenPosition(x: Int, y: Int, fromScreen: Int, targetScreen: Int): (Int, Int) = {
+    val screenAreas = (for (screen <- 0 until Kwin.workspace.numScreens) yield screen -> Kwin.workspace.clientArea(Kwin.Kwin.PlacementArea, screen, Kwin.workspace.currentDesktop)).toMap
+
+    screenAreas.get(targetScreen) -> screenAreas.get(fromScreen) match {
+      case (Some(targetArea), Some(fromArea)) =>
+        val xRatio = (x.toDouble - fromArea.x) / fromArea.width
+        val targetX = targetArea.x + (targetArea.width * xRatio)
+        val yRatio = (y.toDouble - fromArea.y) / fromArea.height
+        val targetY = targetArea.y + (targetArea.height * yRatio)
+        targetX.toInt -> targetY.toInt
+      case other => throw new IllegalStateException("fromScreen or targetScreen not present in current screens? " + other)
+    }
+  }
   /**
    * Force applications spawned by krunner to appear in the same screen that krunner was.
    */
   def krunnerBehaviourFix(print: Any => Unit): Unit = {
-
-    val screenAreas = (for (screen <- 0 until Kwin.workspace.numScreens) yield screen -> Kwin.workspace.clientArea(Kwin.Kwin.PlacementArea, screen, Kwin.workspace.currentDesktop)).toMap
-    print("Detected screens:")
-    screenAreas foreach (e => print(e._1 + " -> " + geomToString(e._2)))
-
-    type ClientClass = (String, String)
-    def clientClass(c: Client): ClientClass = (c.resourceClass.toString, c.resourceName.toString)
-
     var lastScreenKrunnerWasOn = -1
     var lastRemovedWasKrunner = false
     var clientsThatExistedTheMomentKrunnerActivated: Seq[Int] = Seq.empty
@@ -98,17 +109,10 @@ object Main extends JSApp {
 
         //calculate relative position in this screen
         val geo = c.geometry //every time you call this, you get a new geometry! careful
-        screenAreas.get(lastScreenKrunnerWasOn) -> screenAreas.get(c.screen) match {
-          case (Some(targetArea), Some(fromArea)) =>
-            val xRatio = (geo.x.toDouble - fromArea.x) / fromArea.width
-            val targetX = targetArea.x + (targetArea.width * xRatio)
-            val yRatio = (geo.y.toDouble - fromArea.y) / fromArea.height
-            val targetY = targetArea.y + (targetArea.height * yRatio)
-            geo.x = targetX.toInt
-            geo.y = targetY.toInt
-            c.geometry = geo
-          case _ => //TODO: if we can't find the area, it means a new screen was added, we also aren't handling the case of screen removals.
-        }
+        val dest = calculateScreenPosition(geo.x, geo.y, c.screen, lastScreenKrunnerWasOn)
+        geo.x = dest._1
+        geo.y = dest._2
+        c.geometry = geo
       }
     }
     Kwin.workspace.clientActivated.connect { c: Client =>
@@ -134,11 +138,53 @@ object Main extends JSApp {
   /**
    * Force non normal window to appear under the same screen that the main window of the application (I'm looking at you qbittorrent)
    */
-  def nonNormalWindowScreenBehaviourFix(print: Any => Unit): Unit = {}
+  def nonNormalWindowScreenBehaviourFix(print: Any => Unit): Unit = {
+    Kwin.workspace.clientAdded.connect { c: Client =>
+      if (!c.normalWindow) {
+        print("Checking " + clientFullDescr(c))
+        val dialogClass = c.resourceClass.toString
+        //look for its parent window by class and name
+        Kwin.workspace.clientList find (c => c.resourceClass.toString == dialogClass) foreach { parent =>
+          print("Found parent " + clientFullDescr(parent))
+          if (parent.screen != c.screen) {
+            print("=======> adjusting screen")
+
+            //calculate relative position in this screen
+            val geo = c.geometry //every time you call this, you get a new geometry! careful
+            val dest = calculateScreenPosition(geo.x, geo.y, c.screen, parent.screen)
+            geo.x = dest._1
+            geo.y = dest._2
+            c.geometry = geo
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Force all new windows to show in the current screen.
+   */
+  def newWindowsAppearOnCurrentScreen(print: Any => Unit): Unit = {
+    Kwin.workspace.clientAdded.connect { c: Client =>
+      print("Checking " + clientFullDescr(c))
+      if (Kwin.workspace.activeScreen != c.screen) {
+        print("=======> adjusting screen")
+
+        //calculate relative position in this screen
+        val geo = c.geometry //every time you call this, you get a new geometry! careful
+        val dest = calculateScreenPosition(geo.x, geo.y, c.screen, Kwin.workspace.activeScreen)
+        geo.x = dest._1
+        geo.y = dest._2
+        c.geometry = geo
+      }
+    }
+  }
 
   def main = try {
 //    smallTest()
-    krunnerBehaviourFix(print)
+//    krunnerBehaviourFix(print)
+//    nonNormalWindowScreenBehaviourFix(print)
+    newWindowsAppearOnCurrentScreen(print)
   } catch {
     case e: Exception =>
       print(s"Failed due to $e\n")
