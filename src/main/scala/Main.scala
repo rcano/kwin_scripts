@@ -58,16 +58,32 @@ object Main extends JSApp {
   /**
    * Calculates a position in the targetScreen based on relative position with fromScreen
    */
-  def calculateScreenPosition(x: Int, y: Int, fromScreen: Int, targetScreen: Int): (Int, Int) = {
+  def calculateScreenPosition(geom: QRect, fromScreen: Int, targetScreen: Int): (Int, Int) = {
     val screenAreas = (for (screen <- 0 until Kwin.workspace.numScreens) yield screen -> Kwin.workspace.clientArea(Kwin.Kwin.PlacementArea, screen, Kwin.workspace.currentDesktop)).toMap
 
     screenAreas.get(targetScreen) -> screenAreas.get(fromScreen) match {
       case (Some(targetArea), Some(fromArea)) =>
-        val xRatio = (x.toDouble - fromArea.x) / fromArea.width
-        val targetX = targetArea.x + (targetArea.width * xRatio)
-        val yRatio = (y.toDouble - fromArea.y) / fromArea.height
-        val targetY = targetArea.y + (targetArea.height * yRatio)
-        targetX.toInt -> targetY.toInt
+        if (geom.x - fromArea.x <= fromArea.width / 2) { //mode top-left corner
+          print("top-left mode")
+          val x = geom.x
+          val y = geom.y
+          val xRatio = (x.toDouble - fromArea.x) / fromArea.width
+          val targetX = targetArea.x + (targetArea.width * xRatio)
+          val yRatio = (y.toDouble - fromArea.y) / fromArea.height
+          val targetY = targetArea.y + (targetArea.height * yRatio)
+          targetX.toInt -> targetY.toInt
+
+        } else { //top top-right corner
+          print("top-right mode")
+          val x = geom.x + geom.width
+          val y = geom.y + geom.height
+          val xRatio = (x.toDouble - fromArea.x) / fromArea.width
+          val targetX = targetArea.x + (targetArea.width * xRatio) - geom.width
+          val yRatio = (y.toDouble - fromArea.y) / fromArea.height
+          val targetY = targetArea.y + (targetArea.height * yRatio)  - geom.height
+          targetX.toInt -> targetY.toInt
+        }
+
       case other => throw new IllegalStateException("fromScreen or targetScreen not present in current screens? " + other)
     }
   }
@@ -109,7 +125,7 @@ object Main extends JSApp {
 
         //calculate relative position in this screen
         val geo = c.geometry //every time you call this, you get a new geometry! careful
-        val dest = calculateScreenPosition(geo.x, geo.y, c.screen, lastScreenKrunnerWasOn)
+        val dest = calculateScreenPosition(geo, c.screen, lastScreenKrunnerWasOn)
         geo.x = dest._1
         geo.y = dest._2
         c.geometry = geo
@@ -151,7 +167,7 @@ object Main extends JSApp {
 
             //calculate relative position in this screen
             val geo = c.geometry //every time you call this, you get a new geometry! careful
-            val dest = calculateScreenPosition(geo.x, geo.y, c.screen, parent.screen)
+            val dest = calculateScreenPosition(geo, c.screen, parent.screen)
             geo.x = dest._1
             geo.y = dest._2
             c.geometry = geo
@@ -172,7 +188,7 @@ object Main extends JSApp {
 
         //calculate relative position in this screen
         val geo = c.geometry //every time you call this, you get a new geometry! careful
-        val dest = calculateScreenPosition(geo.x, geo.y, c.screen, Kwin.workspace.activeScreen)
+        val dest = calculateScreenPosition(geo, c.screen, Kwin.workspace.activeScreen)
         geo.x = dest._1
         geo.y = dest._2
         c.geometry = geo
