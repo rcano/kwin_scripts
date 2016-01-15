@@ -123,92 +123,93 @@ object Main extends JSApp {
        * krunner flag is activated if the last client was krunner, or the current client being added has the same class as the client that
        * removed the flag, this is like so to deal with the case where an application would spam more than one window.
        */
-       val krunnerFlag = lastRemovedWasKrunner || clientClass(c) == lastClientRemoved
-       print("↑↑↑↑↑" + s"${clientFullDescr(c)} added at screen ${c.screen}, will move ? ${krunnerFlag && c.screen != lastScreenKrunnerWasOn} because ($lastRemovedWasKrunner, $lastScreenKrunnerWasOn, $lastClientRemoved)")
-       if (krunnerFlag && c.screen != lastScreenKrunnerWasOn) {
-          print("MOVING! " + clientFullDescr(c) + " to screen " + lastScreenKrunnerWasOn + " with geom " + geomToString(c.geometry))
+      val krunnerFlag = lastRemovedWasKrunner || clientClass(c) == lastClientRemoved
+      print("↑↑↑↑↑" + s"${clientFullDescr(c)} added at screen ${c.screen}, will move ? ${krunnerFlag && c.screen != lastScreenKrunnerWasOn} because ($lastRemovedWasKrunner, $lastScreenKrunnerWasOn, $lastClientRemoved)")
+      if (krunnerFlag && c.screen != lastScreenKrunnerWasOn) {
+        print("MOVING! " + clientFullDescr(c) + " to screen " + lastScreenKrunnerWasOn + " with geom " + geomToString(c.geometry))
 
-          //calculate relative position in this screen
-          val geo = c.geometry //every time you call this, you get a new geometry! careful
-          val dest = calculateScreenPosition(geo, c.screen, lastScreenKrunnerWasOn)
-          geo.x = dest._1
-          geo.y = dest._2
-          c.geometry = geo
-        }
-       }
-       Kwin.workspace.clientActivated.connect { c: Client =>
-          if (c != null) {
-            print("=====>" + clientFullDescr(c))
+        //calculate relative position in this screen
+        val geo = c.geometry //every time you call this, you get a new geometry! careful
+        val dest = calculateScreenPosition(geo, c.screen, lastScreenKrunnerWasOn)
+        geo.x = dest._1
+        geo.y = dest._2
+        c.geometry = geo
+      }
+    }
+    Kwin.workspace.clientActivated.connect { c: Client =>
+      if (c != null) {
+        print("=====>" + clientFullDescr(c))
 
-            //need to detect if the client activating is the client launched by krunner, or an old client because
-            //notice that sometimes, krunner will close its window and there is a lapse before the new window pops up, during which the previous
-            //window will get the focus back.
+        //need to detect if the client activating is the client launched by krunner, or an old client because
+        //notice that sometimes, krunner will close its window and there is a lapse before the new window pops up, during which the previous
+        //window will get the focus back.
 
-            if (lastRemovedWasKrunner) {
-              clientsThatExistedTheMomentKrunnerActivated.find(c.windowId==) match {
-                case Some(w) => //its an old client gaining focus, so lets not remove the flag
-                case None => //new window activated, so we finally remove the flag
-                  print("←")
-                  lastRemovedWasKrunner = false
-              }
-            }
+        if (lastRemovedWasKrunner) {
+          clientsThatExistedTheMomentKrunnerActivated.find(c.windowId==) match {
+            case Some(w) => //its an old client gaining focus, so lets not remove the flag
+            case None => //new window activated, so we finally remove the flag
+              print("←")
+              lastRemovedWasKrunner = false
           }
         }
-       }
+      }
+    }
+  }
 
-       /**
-        * Force non normal window to appear under the same screen that the main window of the application (I'm looking at you qbittorrent)
-        */
-       def nonNormalWindowScreenBehaviourFix(print: Any => Unit): Unit = {
-          Kwin.workspace.clientAdded.connect { c: Client =>
-            if (!c.normalWindow) {
-              print("Checking " + clientFullDescr(c))
-              val dialogClass = c.resourceClass.toString
-              //look for its parent window by class and name
-              Kwin.workspace.clientList find (c => c.resourceClass.toString == dialogClass) foreach { parent =>
-                print("Found parent " + clientFullDescr(parent))
-                if (parent.screen != c.screen) {
-                  print("=======> adjusting screen")
+  /**
+   * Force non normal window to appear under the same screen that the main window of the application (I'm looking at you qbittorrent)
+   */
+  def nonNormalWindowScreenBehaviourFix(print: Any => Unit): Unit = {
+    Kwin.workspace.clientAdded.connect { c: Client =>
+      if (!c.normalWindow) {
+        print("Checking " + clientFullDescr(c))
+        val dialogClass = c.resourceClass.toString
+        //look for its parent window by class and name
+        Kwin.workspace.clientList find (c => c.resourceClass.toString == dialogClass) foreach { parent =>
+          print("Found parent " + clientFullDescr(parent))
+          if (parent.screen != c.screen) {
+            print("=======> adjusting screen")
 
-                  //calculate relative position in this screen
-                  val geo = c.geometry //every time you call this, you get a new geometry! careful
-                  val dest = calculateScreenPosition(geo, c.screen, parent.screen)
-                  geo.x = dest._1
-                  geo.y = dest._2
-                  c.geometry = geo
-                }
-              }
-            }
+            //calculate relative position in this screen
+            val geo = c.geometry //every time you call this, you get a new geometry! careful
+            val dest = calculateScreenPosition(geo, c.screen, parent.screen)
+            geo.x = dest._1
+            geo.y = dest._2
+            c.geometry = geo
           }
         }
+      }
+    }
+  }
 
-       /**
-        * Force all new windows to show in the current screen.
-        */
-       def newWindowsAppearOnCurrentScreen(print: Any => Unit): Unit = {
-          Kwin.workspace.clientAdded.connect { c: Client =>
-            print("Checking " + clientFullDescr(c))
-            if (Kwin.workspace.activeScreen != c.screen) {
-              print("=======> adjusting screen")
+  /**
+   * Force all new windows to show in the current screen.
+   */
+  def newWindowsAppearOnCurrentScreen(print: Any => Unit): Unit = {
+    Kwin.workspace.clientAdded.connect { c: Client =>
+      print("Checking " + clientFullDescr(c))
+      if (Kwin.workspace.activeScreen != c.screen) {
+        print("=======> adjusting screen")
 
-              //calculate relative position in this screen
-              val geo = c.geometry //every time you call this, you get a new geometry! careful
-              val dest = calculateScreenPosition(geo, c.screen, Kwin.workspace.activeScreen)
-              geo.x = dest._1
-              geo.y = dest._2
-              c.geometry = geo
-            }
-          }
-        }
+        //calculate relative position in this screen
+        val geo = c.geometry //every time you call this, you get a new geometry! careful
+        val dest = calculateScreenPosition(geo, c.screen, Kwin.workspace.activeScreen)
+        geo.x = dest._1
+        geo.y = dest._2
+        c.geometry = geo
+      }
+    }
+  }
 
-       def main = try {
+  def main = try {
 //    smallTest()
 //    krunnerBehaviourFix(print)
 //    nonNormalWindowScreenBehaviourFix(print)
-          newWindowsAppearOnCurrentScreen(print)
-        } catch {
-          case e: Exception =>
-            print(s"Failed due to $e\n")
-            e.getStackTrace foreach print
-        }
-       }
+    newWindowsAppearOnCurrentScreen(print)
+//    print(util.JsApiGenerator.generate(Kwin.workspace.asInstanceOf[Object]))
+  } catch {
+    case e: Exception =>
+      print(s"Failed due to $e\n")
+      e.getStackTrace foreach print
+  }
+}
