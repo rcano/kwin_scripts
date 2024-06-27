@@ -1,8 +1,9 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSName
+import scala.scalajs.js.annotation.{JSName, JSGlobalScope}
 
 @js.native
-object Kwin extends js.GlobalScope {
+@JSGlobalScope
+object Kwin extends js.Object {
 
   val workspace: Workspace = js.native
   val options: Options = js.native
@@ -15,9 +16,10 @@ object Kwin extends js.GlobalScope {
   @js.native
   trait Kwin extends js.Object {
     val PlacementArea: js.Object = js.native
+    val ScreenArea: js.Object = js.native
   }
 
-  def print(arg: Any): Unit = js.native
+  def print(arg: Any*): Unit = js.native
 
   @js.native
   trait Workspace extends js.Object {
@@ -118,6 +120,7 @@ object Kwin extends js.GlobalScope {
     val clientFullScreenSet: Signal[js.Function3[Client, Boolean, Boolean, Unit]] = js.native
     val clientSetKeepAbove: Signal[js.Function2[Client, Boolean, Unit]] = js.native
     val numberDesktopsChanged: Signal[js.Function1[Int, Unit]] = js.native
+    val numberScreensChanged: Signal[js.Function1[Int, Unit]] = js.native
     val desktopLayoutChanged: Signal[js.Function0[Unit]] = js.native
     val clientDemandsAttentionChanged: Signal[js.Function2[Client, Boolean, Unit]] = js.native
   }
@@ -136,7 +139,7 @@ object Kwin extends js.GlobalScope {
     val visibleRect: QRect = js.native
     val height: Int = js.native
     val pos: QPoint = js.native
-    val screen: Int = js.native
+    var screen: Int = js.native
     val size: QDim = js.native
     val width: Int = js.native
     val windowId: Int = js.native
@@ -150,8 +153,8 @@ object Kwin extends js.GlobalScope {
     val rect: QRect = js.native
     val clientPos: QPoint = js.native
     val clientSize: QDim = js.native
-    val resourceName: js.Object = js.native
-    val resourceClass: js.Object = js.native
+    val resourceName: String = js.native
+    val resourceClass: String = js.native
     val windowRole: String = js.native
     val desktopWindow: Boolean = js.native
     val dock: Boolean = js.native
@@ -202,7 +205,7 @@ object Kwin extends js.GlobalScope {
     val caption: String = js.native
     val closeable: Boolean = js.native
     val fullScreenable: Boolean = js.native
-    val maximizable: Boolean = js.native
+    var maximizable: Boolean = js.native
     val minimizable: Boolean = js.native
     val modal: Boolean = js.native
     val moveable: Boolean = js.native
@@ -278,6 +281,13 @@ object Kwin extends js.GlobalScope {
   }
 
   @js.native
+  class QTimer extends js.Object {
+    var singleShot: Boolean = js.native
+    val timeout: Signal[js.Function0[Unit]] = js.native
+    def start(delayInMs: Long): Unit = js.native
+  }
+
+  @js.native
   trait QDim extends js.Object {
     @JSName("w")
     var width: Int = js.native
@@ -298,5 +308,6 @@ object Kwin extends js.GlobalScope {
   @js.native
   trait Signal[F <: js.Function] extends js.Object {
     def connect(f: F): Unit = js.native
+    def disconnect(f: F): Unit
   }
 }
